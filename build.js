@@ -11,6 +11,8 @@ const options = {
   minify: true,
   outfile: "extension/widget.js",
   logLevel: "info",
+  // Hosted server URL, set at build time: SERVER_URL=https://... npm run build
+  define: { __SERVER_URL__: JSON.stringify(process.env.SERVER_URL || "") },
 };
 
 // The SDK starts a small helper worker from a file next to the bundle.

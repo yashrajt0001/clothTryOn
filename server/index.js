@@ -18,6 +18,7 @@ if (!keys.length) {
 }
 const pool = new KeyPool({ keys });
 const app = express();
+app.set("trust proxy", 1); // behind Caddy on the VM: use the real client IP
 app.use(express.json({ limit: "10kb" }));
 
 // Only the extension (or the local preview page) may ask for tokens.
@@ -46,7 +47,18 @@ const usage = new Map();
 // Which key each install was last given, so a client can report "this key hit its limit".
 const issued = new Map();
 
-app.post("/api/tokens", async (req, res) => {
+// Per-IP limit on token requests (a public server shouldn't let one client burn all keys).
+const ipHits = new Map();
+const IP_LIMIT_PER_MIN = Number(process.env.IP_LIMIT_PER_MIN || 20);
+setInterval(() => ipHits.clear(), 60_000).unref();
+function ipLimit(req, res, next) {
+  const hits = (ipHits.get(req.ip) || 0) + 1;
+  ipHits.set(req.ip, hits);
+  if (hits > IP_LIMIT_PER_MIN) return res.status(429).json({ code: "too_many_requests" });
+  next();
+}
+
+app.post("/api/tokens", ipLimit, async (req, res) => {
   const installId = String(req.body?.installId || "");
   if (!/^[0-9a-f-]{36}$/i.test(installId)) return res.status(400).json({ code: "missing_install_id" });
 
@@ -79,7 +91,7 @@ app.post("/api/tokens", async (req, res) => {
 });
 
 // The widget calls this when the key it was given hit its limit while connecting/live.
-app.post("/api/keys/exhausted", (req, res) => {
+app.post("/api/keys/exhausted", ipLimit, (req, res) => {
   const installId = String(req.body?.installId || "");
   const index = issued.get(installId);
   if (index === undefined) return res.status(400).json({ code: "unknown_install" });

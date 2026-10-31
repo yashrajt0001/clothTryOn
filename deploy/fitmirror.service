@@ -1,0 +1,24 @@
+[Unit]
+Description=FitMirror token server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=fitmirror
+WorkingDirectory=/opt/fitmirror
+# .env (keys, PORT, EXTENSION_ID...) overrides the defaults above it
+Environment=PORT=3001
+Environment=LOG_LEVEL=info
+# VM has no working IPv6 route; Node's happy-eyeballs then times out reaching api.decart.ai
+Environment=NODE_OPTIONS=--no-network-family-autoselection
+EnvironmentFile=/opt/fitmirror/.env
+ExecStart=/usr/bin/node server/index.js
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/opt/fitmirror/server
+
+[Install]
+WantedBy=multi-user.target

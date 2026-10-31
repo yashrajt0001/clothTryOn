@@ -119,21 +119,27 @@
 
   // ---------- "Try On" hover button ----------
   let hoverHost, hoverBtn, hoverImg;
+  let placedFor = null; // picture the button is currently placed on
   function makeHoverButton() {
     hoverHost = document.createElement("div");
     hoverHost.style.cssText = "position:fixed;z-index:2147483646;display:none;top:0;left:0";
     const shadow = hoverHost.attachShadow({ mode: "closed" });
     shadow.innerHTML = `<style>
-      button{font:600 13px/1 system-ui,sans-serif;padding:8px 12px;border:0;border-radius:999px;cursor:pointer;
-        background:#111;color:#fff;box-shadow:0 4px 14px rgba(0,0,0,.3)}
-      button:hover{background:#7c9cff;color:#0b0d12}
-    </style><button type="button">Try On</button>`;
+      button{display:flex;align-items:center;gap:8px;font:700 14px/1 system-ui,-apple-system,"Segoe UI",sans-serif;
+        letter-spacing:.01em;padding:0 18px 0 12px;height:44px;border:0;border-radius:999px;cursor:pointer;
+        color:#0b0d12;background:linear-gradient(135deg,#8b9dff,#b48cff);
+        box-shadow:0 8px 24px rgba(139,157,255,.45),0 0 0 2px rgba(255,255,255,.85);
+        transition:transform .15s ease,box-shadow .15s ease}
+      button:hover{transform:scale(1.06);box-shadow:0 10px 30px rgba(139,157,255,.65),0 0 0 2px #fff}
+      button:active{transform:scale(.97)}
+      img{width:24px;height:24px;border-radius:7px;display:block}
+    </style><button type="button"><img alt="" src="${chrome.runtime.getURL("icons/logo.svg")}"><span>Try On</span></button>`;
     hoverBtn = shadow.querySelector("button");
     hoverBtn.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
       if (!extensionAlive()) {
-        hoverBtn.textContent = "Refresh page to try on";
+        hoverBtn.querySelector("span").textContent = "Refresh page";
         return;
       }
       if (hoverImg) tryOn(garmentFor(hoverImg));
@@ -161,21 +167,41 @@
       const img = imageAt(e.clientX, e.clientY);
       hoverImg = img;
       if (!img) {
+        placedFor = null;
         hoverHost.style.display = "none";
         return;
       }
-      const r = img.getBoundingClientRect();
-      const x = r.right - 92;
-      // top-right corner, unless something (like a sticky header) covers it: then bottom-right, then next to the pointer
-      const card = img.closest("a[href]") || img.parentElement;
-      const visibleAt = (y) => {
-        if (y < 0 || y + 34 > innerHeight) return false;
-        const top = document.elementsFromPoint(x + 40, y + 16).find((el) => el !== hoverHost);
-        return !!top && (top === img || card.contains(top));
+      // Same picture, button already placed: leave it. It must never follow the pointer, or it can't be clicked.
+      if (img === placedFor && hoverHost.style.display === "block") return;
+      placedFor = img;
+      const full = img.getBoundingClientRect();
+      // only the part of the picture that is on screen (zoomed pictures are bigger than the window)
+      const r = {
+        left: Math.max(full.left, 0),
+        right: Math.min(full.right, innerWidth),
+        top: Math.max(full.top, 0),
+        bottom: Math.min(full.bottom, innerHeight),
       };
-      const y = [r.top + 10, r.bottom - 44].find(visibleAt) ?? e.clientY - 50;
+      const W = 126;
+      const H = 44;
+      const card = img.closest("a[href]") || img.parentElement;
+      const free = (x, y) =>
+        [x + 8, x + W / 2, x + W - 8].every((px) => {
+          const top = document.elementsFromPoint(px, y + H / 2).find((el) => el !== hoverHost);
+          return !!top && (top === img || card.contains(top));
+        });
+      // top-right first; if something covers it (sticky header, zoom arrows, close icon) try other spots
+      const xs = [r.right - W - 10, r.left + 10, (r.left + r.right - W) / 2];
+      const ys = [r.top + 10, r.bottom - H - 10, (r.top + r.bottom - H) / 2];
+      let spot = null;
+      for (const y of ys) {
+        spot = xs.map((x) => ({ x, y })).find((p) => free(p.x, p.y));
+        if (spot) break;
+      }
+      // nothing free: fixed spot at the bottom centre of the visible picture (still not tied to the pointer)
+      spot ??= { x: (r.left + r.right - W) / 2, y: r.bottom - H - 10 };
       hoverHost.style.display = "block";
-      hoverHost.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+      hoverHost.style.transform = `translate(${Math.round(spot.x)}px, ${Math.round(spot.y)}px)`;
     });
   }
 
@@ -364,7 +390,14 @@
     enabled = true;
     makeHoverButton();
     document.addEventListener("pointermove", onPointerMove, { passive: true });
-    window.addEventListener("scroll", () => (hoverHost.style.display = "none"), { passive: true });
+    window.addEventListener(
+      "scroll",
+      () => {
+        placedFor = null;
+        hoverHost.style.display = "none";
+      },
+      { passive: true }
+    );
   }
 
   if (isFashionSite()) enable();
