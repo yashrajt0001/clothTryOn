@@ -198,41 +198,48 @@
     document.documentElement.appendChild(frame);
   }
 
-  let framePos = null; // {left, top} once the user dragged it; null = default bottom-left
+  const MARGIN = 20;
+  let framePos = null; // {x, y} once the user dragged it; null = pinned bottom-left
   let frameBig = false;
+  let frameW = 380;
+  let frameH = 600;
+  let dragRaf = 0;
 
-  function clampPos() {
-    if (!frame || !framePos) return;
-    const w = frame.offsetWidth;
-    const h = frame.offsetHeight;
-    framePos.left = Math.min(Math.max(0, framePos.left), Math.max(0, innerWidth - w));
-    framePos.top = Math.min(Math.max(0, framePos.top), Math.max(0, innerHeight - h));
+  // Position is a GPU transform (no layout), and writes are batched to one per animation frame.
+  function paintFrame() {
+    dragRaf = 0;
+    if (!frame) return;
+    const maxX = Math.max(0, innerWidth - frameW);
+    const maxY = Math.max(0, innerHeight - frameH);
+    const pos = framePos ?? { x: MARGIN, y: innerHeight - frameH - MARGIN };
+    pos.x = Math.min(Math.max(0, pos.x), maxX);
+    pos.y = Math.min(Math.max(0, pos.y), maxY);
+    frame.style.transform = `translate3d(${pos.x}px, ${pos.y}px, 0)`;
+  }
+
+  function schedulePaint() {
+    if (!dragRaf) dragRaf = requestAnimationFrame(paintFrame);
   }
 
   function moveFrame(dx, dy) {
     if (!frame) return;
     if (!framePos) {
       const r = frame.getBoundingClientRect();
-      framePos = { left: r.left, top: r.top };
+      framePos = { x: r.left, y: r.top };
     }
-    framePos.left += dx;
-    framePos.top += dy;
-    setFrameSize(frameBig);
+    framePos.x += dx;
+    framePos.y += dy;
+    schedulePaint();
   }
 
   function setFrameSize(big) {
     frameBig = big;
-    const w = big ? "min(720px, calc(100vw - 40px))" : "380px";
-    const h = big ? "min(560px, calc(100vh - 40px))" : "600px";
-    const place = framePos ? `left:${Math.round(framePos.left)}px;top:${Math.round(framePos.top)}px` : "bottom:20px;left:20px";
-    frame.style.cssText = `position:fixed;${place};z-index:2147483647;border:0;border-radius:16px;
-      box-shadow:0 10px 40px rgba(0,0,0,.35);color-scheme:normal;background:#171a21;
-      width:${w};height:${h}`;
-    clampPos();
-    if (framePos) {
-      frame.style.left = `${Math.round(framePos.left)}px`;
-      frame.style.top = `${Math.round(framePos.top)}px`;
-    }
+    frameW = big ? Math.min(720, innerWidth - 2 * MARGIN) : 380;
+    frameH = Math.min(big ? 560 : 600, innerHeight - 2 * MARGIN);
+    frame.style.cssText = `position:fixed;left:0;top:0;z-index:2147483647;border:0;border-radius:20px;
+      box-shadow:0 24px 60px rgba(0,0,0,.45),0 0 0 1px rgba(255,255,255,.08);color-scheme:normal;background:#0e1014;
+      will-change:transform;transition:width .2s ease,height .2s ease;width:${frameW}px;height:${frameH}px`;
+    paintFrame();
   }
 
   window.addEventListener("resize", () => frame && setFrameSize(frameBig));
@@ -245,6 +252,8 @@
     queue = [];
     framePos = null;
     frameBig = false;
+    cancelAnimationFrame(dragRaf);
+    dragRaf = 0;
   }
 
   // After the extension is reloaded or updated, this old copy of the script loses its link to it

@@ -389,23 +389,30 @@ els.grow.addEventListener("click", () => {
 if (inFrame) {
   const header = document.querySelector("header");
   let last = null;
+  let pending = { dx: 0, dy: 0 };
+  let raf = 0;
+  const flush = () => {
+    raf = 0;
+    if (pending.dx || pending.dy) toPage("DRAG", pending);
+    pending = { dx: 0, dy: 0 };
+  };
   header.addEventListener("pointerdown", (e) => {
-    if (e.button !== 0 || e.target.closest("button")) return;
+    if (e.button !== 0 || e.target.closest("button, select")) return;
     last = { x: e.screenX, y: e.screenY };
     header.setPointerCapture(e.pointerId);
-    header.classList.add("grabbing");
+    document.body.classList.add("grabbing");
     e.preventDefault();
   });
   header.addEventListener("pointermove", (e) => {
     if (!last) return;
-    const dx = e.screenX - last.x;
-    const dy = e.screenY - last.y;
+    pending.dx += e.screenX - last.x;
+    pending.dy += e.screenY - last.y;
     last = { x: e.screenX, y: e.screenY };
-    if (dx || dy) toPage("DRAG", { dx, dy });
+    if (!raf) raf = requestAnimationFrame(flush);
   });
   const stop = () => {
     last = null;
-    header.classList.remove("grabbing");
+    document.body.classList.remove("grabbing");
   };
   header.addEventListener("pointerup", stop);
   header.addEventListener("pointercancel", stop);

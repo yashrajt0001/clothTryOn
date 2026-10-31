@@ -8,7 +8,17 @@
 </head>
 <body data-mode="idle">
   <header>
+    <span class="dot" aria-hidden="true"></span>
     <strong>Live Try-On</strong>
+    <select id="category" title="Item type (auto-detected)">
+      <option value="top">Top</option>
+      <option value="outerwear">Jacket</option>
+      <option value="dress">Dress</option>
+      <option value="bottom">Bottom</option>
+      <option value="shoes">Shoes</option>
+      <option value="hat">Hat</option>
+      <option value="eyewear">Glasses</option>
+    </select>
     <span id="timer" class="timer"></span>
     <button id="grow" class="icon" type="button" title="Bigger / smaller">⤢</button>
     <button id="close" class="icon" type="button" title="Close">✕</button>
@@ -19,32 +29,23 @@
     <video id="output" autoplay playsinline muted></video>
 
     <div id="idle" class="idle">
-      <p>Hover any product picture and click <b>Try On</b>.<br />Or drop / paste a garment picture here.</p>
+      <p>Hover a product picture and click <b>Try On</b><br />or drop / paste a garment picture here.</p>
       <button id="product" class="primary" type="button" hidden>Try on this item</button>
       <button id="resume" type="button" hidden>Try again</button>
       <label class="btn">Choose picture<input id="file" type="file" accept="image/*" hidden /></label>
+      <p class="privacy">While live, your camera video is sent to Decart's AI to draw the outfit on you.</p>
     </div>
 
     <img id="thumb" class="thumb" alt="Garment" hidden />
     <div id="status" class="status"></div>
     <button id="openWindow" class="float" type="button" hidden>Open in its own window</button>
-  </main>
 
-  <footer>
-    <select id="category" title="What kind of item is it?">
-      <option value="top">Top / shirt</option>
-      <option value="outerwear">Jacket / coat</option>
-      <option value="dress">Dress</option>
-      <option value="bottom">Pants / skirt</option>
-      <option value="shoes">Shoes</option>
-      <option value="hat">Hat / cap</option>
-      <option value="eyewear">Glasses</option>
-    </select>
-    <button id="snap" class="icon live-only" type="button" title="Save photo">⭳</button>
-    <button id="stop" class="busy-only" type="button">Stop</button>
-    <button id="cart" class="primary" type="button" hidden>Add to cart</button>
-  </footer>
-  <p class="privacy">While live, your camera video is sent to Decart's AI to draw the outfit on you.</p>
+    <footer>
+      <button id="snap" class="icon live-only" type="button" title="Save photo">⭳</button>
+      <button id="stop" class="busy-only" type="button">Stop</button>
+      <button id="cart" class="primary" type="button" hidden>Add to cart</button>
+    </footer>
+  </main>
 
   <script type="module" src="widget.js"></script>
 </body>
