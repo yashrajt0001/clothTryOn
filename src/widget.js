@@ -385,6 +385,39 @@ els.grow.addEventListener("click", () => {
   toPage("RESIZE", { big });
 });
 
+// Drag the floating window by its header (screen coords stay stable while the iframe moves)
+if (inFrame) {
+  const header = document.querySelector("header");
+  let last = null;
+  let pending = { dx: 0, dy: 0 };
+  let raf = 0;
+  const flush = () => {
+    raf = 0;
+    if (pending.dx || pending.dy) toPage("DRAG", pending);
+    pending = { dx: 0, dy: 0 };
+  };
+  header.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0 || e.target.closest("button, select")) return;
+    last = { x: e.screenX, y: e.screenY };
+    header.setPointerCapture(e.pointerId);
+    document.body.classList.add("grabbing");
+    e.preventDefault();
+  });
+  header.addEventListener("pointermove", (e) => {
+    if (!last) return;
+    pending.dx += e.screenX - last.x;
+    pending.dy += e.screenY - last.y;
+    last = { x: e.screenX, y: e.screenY };
+    if (!raf) raf = requestAnimationFrame(flush);
+  });
+  const stop = () => {
+    last = null;
+    document.body.classList.remove("grabbing");
+  };
+  header.addEventListener("pointerup", stop);
+  header.addEventListener("pointercancel", stop);
+}
+
 els.openWindow.addEventListener("click", () => {
   const g = garment?.url ? { url: garment.url, title: garment.title, category: garment.category } : null;
   chrome.runtime.sendMessage({ type: "OPEN_WINDOW", widgetId, garment: g }).catch(() => {});

@@ -198,11 +198,51 @@
     document.documentElement.appendChild(frame);
   }
 
-  function setFrameSize(big) {
-    frame.style.cssText = `position:fixed;bottom:20px;left:20px;z-index:2147483647;border:0;border-radius:16px;
-      box-shadow:0 10px 40px rgba(0,0,0,.35);color-scheme:normal;background:#171a21;
-      width:${big ? "min(720px, calc(100vw - 40px))" : "380px"};height:${big ? "min(560px, calc(100vh - 40px))" : "600px"}`;
+  const MARGIN = 20;
+  let framePos = null; // {x, y} once the user dragged it; null = pinned bottom-left
+  let frameBig = false;
+  let frameW = 380;
+  let frameH = 600;
+  let dragRaf = 0;
+
+  // Position is a GPU transform (no layout), and writes are batched to one per animation frame.
+  function paintFrame() {
+    dragRaf = 0;
+    if (!frame) return;
+    const maxX = Math.max(0, innerWidth - frameW);
+    const maxY = Math.max(0, innerHeight - frameH);
+    const pos = framePos ?? { x: MARGIN, y: innerHeight - frameH - MARGIN };
+    pos.x = Math.min(Math.max(0, pos.x), maxX);
+    pos.y = Math.min(Math.max(0, pos.y), maxY);
+    frame.style.transform = `translate3d(${pos.x}px, ${pos.y}px, 0)`;
   }
+
+  function schedulePaint() {
+    if (!dragRaf) dragRaf = requestAnimationFrame(paintFrame);
+  }
+
+  function moveFrame(dx, dy) {
+    if (!frame) return;
+    if (!framePos) {
+      const r = frame.getBoundingClientRect();
+      framePos = { x: r.left, y: r.top };
+    }
+    framePos.x += dx;
+    framePos.y += dy;
+    schedulePaint();
+  }
+
+  function setFrameSize(big) {
+    frameBig = big;
+    frameW = big ? Math.min(720, innerWidth - 2 * MARGIN) : 380;
+    frameH = Math.min(big ? 560 : 600, innerHeight - 2 * MARGIN);
+    frame.style.cssText = `position:fixed;left:0;top:0;z-index:2147483647;border:0;border-radius:20px;
+      box-shadow:0 24px 60px rgba(0,0,0,.45),0 0 0 1px rgba(255,255,255,.08);color-scheme:normal;background:#0e1014;
+      will-change:transform;transition:width .2s ease,height .2s ease;width:${frameW}px;height:${frameH}px`;
+    paintFrame();
+  }
+
+  window.addEventListener("resize", () => frame && setFrameSize(frameBig));
 
   function closeWidget() {
     frame?.remove();
@@ -210,6 +250,10 @@
     widgetId = null;
     ready = false;
     queue = [];
+    framePos = null;
+    frameBig = false;
+    cancelAnimationFrame(dragRaf);
+    dragRaf = 0;
   }
 
   // After the extension is reloaded or updated, this old copy of the script loses its link to it
@@ -252,6 +296,9 @@
         break;
       case "RESIZE":
         if (frame) setFrameSize(data.big);
+        break;
+      case "DRAG":
+        if (Number.isFinite(data.dx) && Number.isFinite(data.dy)) moveFrame(data.dx, data.dy);
         break;
       case "ADD_TO_CART":
         cartButton()?.click();
