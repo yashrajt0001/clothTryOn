@@ -26,6 +26,8 @@ header {
   padding: 8px 10px;
   border-bottom: 1px solid var(--line);
 }
+body:not(.standalone) header { cursor: grab; user-select: none; }
+body:not(.standalone) header.grabbing { cursor: grabbing; }
 header strong { flex: 1; font-size: 13.5px; }
 .timer { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 

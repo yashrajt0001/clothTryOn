@@ -198,11 +198,44 @@
     document.documentElement.appendChild(frame);
   }
 
-  function setFrameSize(big) {
-    frame.style.cssText = `position:fixed;bottom:20px;left:20px;z-index:2147483647;border:0;border-radius:16px;
-      box-shadow:0 10px 40px rgba(0,0,0,.35);color-scheme:normal;background:#171a21;
-      width:${big ? "min(720px, calc(100vw - 40px))" : "380px"};height:${big ? "min(560px, calc(100vh - 40px))" : "600px"}`;
+  let framePos = null; // {left, top} once the user dragged it; null = default bottom-left
+  let frameBig = false;
+
+  function clampPos() {
+    if (!frame || !framePos) return;
+    const w = frame.offsetWidth;
+    const h = frame.offsetHeight;
+    framePos.left = Math.min(Math.max(0, framePos.left), Math.max(0, innerWidth - w));
+    framePos.top = Math.min(Math.max(0, framePos.top), Math.max(0, innerHeight - h));
   }
+
+  function moveFrame(dx, dy) {
+    if (!frame) return;
+    if (!framePos) {
+      const r = frame.getBoundingClientRect();
+      framePos = { left: r.left, top: r.top };
+    }
+    framePos.left += dx;
+    framePos.top += dy;
+    setFrameSize(frameBig);
+  }
+
+  function setFrameSize(big) {
+    frameBig = big;
+    const w = big ? "min(720px, calc(100vw - 40px))" : "380px";
+    const h = big ? "min(560px, calc(100vh - 40px))" : "600px";
+    const place = framePos ? `left:${Math.round(framePos.left)}px;top:${Math.round(framePos.top)}px` : "bottom:20px;left:20px";
+    frame.style.cssText = `position:fixed;${place};z-index:2147483647;border:0;border-radius:16px;
+      box-shadow:0 10px 40px rgba(0,0,0,.35);color-scheme:normal;background:#171a21;
+      width:${w};height:${h}`;
+    clampPos();
+    if (framePos) {
+      frame.style.left = `${Math.round(framePos.left)}px`;
+      frame.style.top = `${Math.round(framePos.top)}px`;
+    }
+  }
+
+  window.addEventListener("resize", () => frame && setFrameSize(frameBig));
 
   function closeWidget() {
     frame?.remove();
@@ -210,6 +243,8 @@
     widgetId = null;
     ready = false;
     queue = [];
+    framePos = null;
+    frameBig = false;
   }
 
   // After the extension is reloaded or updated, this old copy of the script loses its link to it
@@ -252,6 +287,9 @@
         break;
       case "RESIZE":
         if (frame) setFrameSize(data.big);
+        break;
+      case "DRAG":
+        if (Number.isFinite(data.dx) && Number.isFinite(data.dy)) moveFrame(data.dx, data.dy);
         break;
       case "ADD_TO_CART":
         cartButton()?.click();
