@@ -6,7 +6,8 @@
     "build": "node build.js",
     "watch": "node build.js --watch",
     "server": "node --env-file=.env server/index.js",
-    "start": "node build.js && node --env-file=.env server/index.js"
+    "start": "node build.js && node --env-file=.env server/index.js",
+    "test": "node --test server/keyPool.test.js"
   },
   "dependencies": {
     "@decartai/sdk": "^0.2.3",

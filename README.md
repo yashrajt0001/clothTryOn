@@ -53,3 +53,17 @@ hidden tab, and at the 5-minute session cap. Press **Stop** or **✕** when done
 | `EXTENSION_ID` | any | Lock the server to your extension (ID from `chrome://extensions`) |
 
 After changing anything in `src/`, run `npm run build` and press the reload icon on the extension card.
+
+## Multiple API keys (rate limits)
+
+Put several Decart keys (different accounts) in `.env`:
+
+```
+DECART_API_KEYS=key_one,key_two,key_three
+```
+
+- Keys are used in order. When one hits its limit it is written to `server/userkey.json` (last 8 chars only) and never used again; the widget switches to the next key automatically, also while live.
+- All keys used up: the widget tells you to add new keys. Add them to `DECART_API_KEYS` and restart the server (no need to edit `userkey.json`).
+- To reuse a key anyway, delete its entry (or the whole file) in `server/userkey.json`.
+- `GET /api/health` shows `keys: { total, available, exhausted }`.
+- Tests: `npm test`.

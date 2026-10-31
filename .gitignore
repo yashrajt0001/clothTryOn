@@ -3,3 +3,4 @@ node_modules/
 extension/widget.js
 extension/frame-metadata-worker.js
 .playwright-mcp/
+server/userkey.json
