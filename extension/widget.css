@@ -36,6 +36,7 @@ header {
 }
 body:not(.standalone) header { cursor: grab; touch-action: none; }
 body.grabbing, body.grabbing * { cursor: grabbing !important; }
+.logo { width: 22px; height: 22px; border-radius: 6px; display: block; }
 .dot {
   width: 8px;
   height: 8px;

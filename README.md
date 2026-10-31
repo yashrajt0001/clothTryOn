@@ -1,4 +1,6 @@
-# Live Try-On (Chrome extension + Decart AI)
+# FitMirror (Chrome extension + Decart AI)
+
+> Try it on before you buy.
 
 Works like Anywear: hover a product picture on a clothing shop, click **Try On**, and see yourself wearing it
 live on your webcam. Decart's realtime AI model (`lucy-vton-latest`) redraws every camera frame with the garment.

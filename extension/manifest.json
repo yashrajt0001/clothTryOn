@@ -1,9 +1,13 @@
 {
   "manifest_version": 3,
-  "name": "Live Try-On",
+  "name": "FitMirror",
   "version": "0.1.0",
-  "description": "Try clothes on live with your webcam while you shop.",
-  "action": { "default_title": "Live Try-On: open / close" },
+  "description": "Try it on before you buy.",
+  "icons": { "16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png" },
+  "action": {
+    "default_title": "FitMirror: open / close",
+    "default_icon": { "16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png" }
+  },
   "background": { "service_worker": "background.js" },
   "content_scripts": [
     {
@@ -13,7 +17,7 @@
     }
   ],
   "web_accessible_resources": [
-    { "resources": ["widget.html"], "matches": ["http://*/*", "https://*/*"] }
+    { "resources": ["widget.html", "icons/logo.svg"], "matches": ["http://*/*", "https://*/*"] }
   ],
   "permissions": ["storage"],
   "host_permissions": ["<all_urls>"]

@@ -193,7 +193,7 @@
     frame = document.createElement("iframe");
     frame.src = `${WIDGET_PAGE}#id=${widgetId}`;
     frame.allow = "camera";
-    frame.title = "Live Try-On";
+    frame.title = "FitMirror";
     setFrameSize(false);
     document.documentElement.appendChild(frame);
   }
