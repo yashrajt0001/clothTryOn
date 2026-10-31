@@ -136,22 +136,10 @@ async function start() {
     els.local.srcObject = camera;
 
     setStatus("Connecting to the AI…");
-    const token = await getToken();
-    if (myRun !== run) return;
-    maxSeconds = token.maxSessionSeconds || 0;
-    const client = createDecartClient({ apiKey: token.apiKey });
     const first = garment;
-    const session = await client.realtime.connect(camera, {
-      model: models.realtime(token.model || "lucy-vton-latest"),
-      mirror: true, // webcams show you like a mirror
-      initialState: { image: first.image, prompt: { text: buildPrompt(first), enhance: true } },
-      onRemoteStream: (stream) => {
-        els.output.srcObject = stream;
-        els.output.play().catch(() => {});
-      },
-      onQueuePosition: ({ position, queueSize }) => setStatus(`Waiting for a free AI slot: ${position} of ${queueSize}`),
-    });
-    if (myRun !== run) return session.disconnect();
+    const { token, session } = await connectWithKeyFailover(first, myRun);
+    if (myRun !== run) return session?.disconnect();
+    maxSeconds = token.maxSessionSeconds || 0;
     rt = session;
     rt.on("connectionChange", (state) => {
       if (state === "reconnecting") setStatus("Connection dropped, reconnecting…");
@@ -165,7 +153,10 @@ async function start() {
         }, 8000);
       }
     });
-    rt.on("sessionEnded", ({ reason }) => stop(endMessage(reason)));
+    rt.on("sessionEnded", ({ reason }) => {
+      if (/insufficient_credits|quota|credit/i.test(reason || "")) switchKey(reason);
+      else stop(endMessage(reason));
+    });
     rt.on("error", (err) => console.warn("Decart:", err));
     sessionStart = Date.now();
     if (els.output.readyState >= 2) showLive();
@@ -178,6 +169,58 @@ async function start() {
   } finally {
     starting = false;
   }
+}
+
+// Errors that mean "this API key is used up" (not a network glitch).
+const KEY_PROBLEM = /429|rate.?limit|too many|quota|credit|exceed|unauthori|forbidden|\b40[123]\b|1008/i;
+
+// Get a token and connect. If the key hit its limit, retire it on the server and try the next one.
+async function connectWithKeyFailover(first, myRun) {
+  for (;;) {
+    const token = await getToken();
+    try {
+      const client = createDecartClient({ apiKey: token.apiKey });
+      const session = await client.realtime.connect(camera, {
+        model: models.realtime(token.model || "lucy-vton-latest"),
+        mirror: true, // webcams show you like a mirror
+        initialState: { image: first.image, prompt: { text: buildPrompt(first), enhance: true } },
+        onRemoteStream: (stream) => {
+          els.output.srcObject = stream;
+          els.output.play().catch(() => {});
+        },
+        onQueuePosition: ({ position, queueSize }) => setStatus(`Waiting for a free AI slot: ${position} of ${queueSize}`),
+      });
+      return { token, session };
+    } catch (err) {
+      const msg = err?.message || String(err);
+      if (myRun !== run || !KEY_PROBLEM.test(msg)) throw err;
+      await reportKeyExhausted(msg);
+      setStatus("API key limit reached, switching to another key…");
+    }
+  }
+}
+
+// Key ran out while live: retire it and reconnect automatically with the next key.
+async function switchKey(reason) {
+  await reportKeyExhausted(reason);
+  cleanup();
+  setMode("starting");
+  setStatus("API key limit reached, switching to another key…");
+  try {
+    await start();
+  } catch (err) {
+    fail(err);
+  }
+}
+
+async function reportKeyExhausted(reason) {
+  try {
+    await fetch(`${SERVER_URL}/api/keys/exhausted`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ installId: await getInstallId(), reason: String(reason).slice(0, 200) }),
+    });
+  } catch {}
 }
 
 async function apply() {
@@ -270,6 +313,9 @@ async function getToken() {
     throw new UserError(`Can't reach the try-on server at ${SERVER_URL}. Is it running? (npm start)`);
   }
   const data = await res.json().catch(() => ({}));
+  if (res.status === 503 && data.code === "all_keys_exhausted") {
+    throw new UserError("All API keys are used up. Add new keys to DECART_API_KEYS in the server .env and restart it.");
+  }
   if (res.status === 429) throw new UserError("Daily try-on limit reached. Try again tomorrow.");
   if (res.status === 403) throw new UserError("The server didn't accept this extension. Check EXTENSION_ID in .env.");
   if (!res.ok) throw new UserError(`Server error: ${data.message || data.code || res.status}`);

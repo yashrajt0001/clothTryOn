@@ -2,7 +2,7 @@
 // short-lived keys that only work for the try-on model and for a limited session length.
 import express from "express";
 import path from "node:path";
-import { createDecartClient } from "@decartai/sdk";
+import { KeyPool, AllKeysExhaustedError, parseKeys } from "./keyPool.js";
 
 const PORT = Number(process.env.PORT || 3000);
 const MODEL = process.env.DECART_MODEL || "lucy-vton-latest";
@@ -11,12 +11,12 @@ const DAILY_SESSIONS = Number(process.env.DAILY_SESSIONS_PER_USER || 30);
 // Optional: lock the server to your extension only (find the ID on chrome://extensions)
 const EXTENSION_ID = process.env.EXTENSION_ID || "";
 
-if (!process.env.DECART_API_KEY) {
-  console.error("Missing DECART_API_KEY. Put it in the .env file in the project folder.");
+const keys = parseKeys();
+if (!keys.length) {
+  console.error("Missing API keys. Put DECART_API_KEYS=key1,key2,... in the .env file in the project folder.");
   process.exit(1);
 }
-
-const decart = createDecartClient({ apiKey: process.env.DECART_API_KEY });
+const pool = new KeyPool({ keys });
 const app = express();
 app.use(express.json({ limit: "10kb" }));
 
@@ -43,6 +43,8 @@ app.use("/api", (req, res, next) => {
 
 // Simple per-user daily limit. Resets when the server restarts; use a database for real users.
 const usage = new Map();
+// Which key each install was last given, so a client can report "this key hit its limit".
+const issued = new Map();
 
 app.post("/api/tokens", async (req, res) => {
   const installId = String(req.body?.installId || "");
@@ -53,13 +55,14 @@ app.post("/api/tokens", async (req, res) => {
   if (count >= DAILY_SESSIONS) return res.status(429).json({ code: "daily_limit_reached" });
 
   try {
-    const token = await decart.tokens.create({
+    const { token, index } = await pool.createToken({
       expiresIn: 120, // only needed to open the connection; the live session keeps going after it expires
       allowedModels: [MODEL],
       constraints: { realtime: { maxSessionDuration: MAX_SESSION_SECONDS } },
       metadata: { installId },
     });
     usage.set(key, count + 1);
+    issued.set(installId, index);
     res.json({
       apiKey: token.apiKey,
       expiresAt: token.expiresAt,
@@ -67,12 +70,25 @@ app.post("/api/tokens", async (req, res) => {
       maxSessionSeconds: MAX_SESSION_SECONDS,
     });
   } catch (err) {
+    if (err instanceof AllKeysExhaustedError) {
+      return res.status(503).json({ code: err.code, message: err.message });
+    }
     console.error("Token error:", err);
     res.status(502).json({ code: "decart_error", message: err.message });
   }
 });
 
-app.get("/api/health", (_req, res) => res.json({ ok: true, model: MODEL }));
+// The widget calls this when the key it was given hit its limit while connecting/live.
+app.post("/api/keys/exhausted", (req, res) => {
+  const installId = String(req.body?.installId || "");
+  const index = issued.get(installId);
+  if (index === undefined) return res.status(400).json({ code: "unknown_install" });
+  pool.markExhausted(index, req.body?.reason || "reported by client");
+  issued.delete(installId);
+  res.json(pool.status());
+});
+
+app.get("/api/health", (_req, res) => res.json({ ok: true, model: MODEL, keys: pool.status() }));
 
 // Preview: the same widget as a normal web page, to test without installing the extension.
 app.use("/preview", express.static(path.resolve("extension")));
@@ -88,5 +104,8 @@ app.listen(PORT, (err) => {
     process.exit(1);
   }
   console.log(`Try-on server running: http://localhost:${PORT}`);
+  const { total, available } = pool.status();
+  console.log(`API keys: ${available} available of ${total}`);
+  if (!available) console.error("All API keys are exhausted. Add new keys to DECART_API_KEYS in .env and restart.");
   console.log(`Preview page:          http://localhost:${PORT}/preview/widget.html`);
 });
