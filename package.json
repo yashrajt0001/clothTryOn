@@ -1,0 +1,18 @@
+{
+  "name": "cloth-try-on",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.js",
+    "watch": "node build.js --watch",
+    "server": "node --env-file=.env server/index.js",
+    "start": "node build.js && node --env-file=.env server/index.js"
+  },
+  "dependencies": {
+    "@decartai/sdk": "^0.2.3",
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}

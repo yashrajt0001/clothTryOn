@@ -1,0 +1,5 @@
+node_modules/
+.env
+extension/widget.js
+extension/frame-metadata-worker.js
+.playwright-mcp/
